@@ -19,7 +19,10 @@
 
   var M = window.AutobusseMotore;
   var C = window.AutobusseColori;
-  var LIVELLI = window.AutobusseLivelli;
+  var F = window.AutobusseFabbrica;
+  var TOTALE = F.TOTALE;
+  var PER_CAPITOLO = 50;
+  function defLivello(i) { return F.definizione(i + 1); }
   var A = window.AutobusseArchivio;
   var S = window.AutobusseSuoni;
 
@@ -141,53 +144,87 @@
   /* ------------------------------------------------------------------ */
 
   function prossimoLivello() {
-    var sbl = Math.min(A.sbloccato(), LIVELLI.length);
-    for (var i = 0; i < sbl; i++) if (!A.completato(LIVELLI[i].id)) return i;
+    var sbl = Math.min(A.sbloccato(), TOTALE);
+    for (var i = 0; i < sbl; i++) if (!A.completato(i + 1)) return i;
     return sbl - 1;
   }
 
+  function contaCompletati() {
+    var n = 0;
+    for (var i = 1; i <= TOTALE; i++) if (A.completato(i)) n++;
+    return n;
+  }
+
+  var capitoliCostruiti = false;
+  function preparaCapitoli() {
+    if (capitoliCostruiti) return;
+    capitoliCostruiti = true;
+    var sel = $('sel-capitolo');
+    var quanti = Math.ceil(TOTALE / PER_CAPITOLO);
+    for (var k = 0; k < quanti; k++) {
+      var o = document.createElement('option');
+      o.value = k;
+      var da = k * PER_CAPITOLO + 1, a = Math.min(TOTALE, (k + 1) * PER_CAPITOLO);
+      o.textContent = 'Capitolo ' + (k + 1) + ': ' + (k === 0 ? 'Primi passi' : F.nomeCapitolo(k)) + ' (' + da + '\u2013' + a + ')';
+      sel.appendChild(o);
+    }
+    sel.addEventListener('change', function () { stato.capitolo = Number(sel.value); disegnaHome(); });
+    $('b-cap-prec').addEventListener('click', function () { if (stato.capitolo > 0) { stato.capitolo--; disegnaHome(); } });
+    $('b-cap-succ').addEventListener('click', function () { if (stato.capitolo < quanti - 1) { stato.capitolo++; disegnaHome(); } });
+  }
+
   function disegnaHome() {
-    var ol = $('elenco-livelli');
-    ol.textContent = '';
+    preparaCapitoli();
     var sbl = A.sbloccato();
     var prossimo = prossimoLivello();
-    LIVELLI.forEach(function (def, i) {
-      var li = document.createElement('li');
-      var b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'livello-tasto';
-      var fatto = A.completato(def.id);
-      var bloccato = def.id > sbl;
-      var num = document.createElement('span'); num.className = 'num'; num.textContent = def.id;
-      var nome = document.createElement('span'); nome.className = 'nome'; nome.textContent = def.nome;
-      var st = document.createElement('span'); st.className = 'stato';
-      var etichettaStato;
-      if (bloccato) {
-        b.disabled = true;
-        st.appendChild(iconaUi('i-lucchetto'));
-        st.appendChild(document.createTextNode('Bloccato'));
-        etichettaStato = 'bloccato';
-      } else if (fatto) {
-        b.classList.add('fatto');
-        st.appendChild(iconaUi('i-spunta'));
-        st.appendChild(document.createTextNode(fatto.senzaAiuti ? 'Fatto senza aiuti' : 'Completato'));
-        etichettaStato = fatto.senzaAiuti ? 'completato senza aiuti' : 'completato';
-      } else {
-        st.textContent = 'Da giocare';
-        etichettaStato = 'da giocare';
-      }
-      if (i === prossimo && !fatto) b.classList.add('prossimo');
-      b.setAttribute('aria-label', 'Livello ' + def.id + ', ' + def.nome + ', ' + etichettaStato);
-      b.appendChild(num); b.appendChild(nome); b.appendChild(st);
-      b.addEventListener('click', function () { S.suona('clic'); avviaLivello(i); });
-      li.appendChild(b);
-      ol.appendChild(li);
-    });
-    var def = LIVELLI[prossimo];
-    var tuttiFatti = LIVELLI.every(function (d) { return A.completato(d.id); });
-    $('home-prossimo').textContent = tuttiFatti
+    if (stato.capitolo == null) stato.capitolo = Math.floor(prossimo / PER_CAPITOLO);
+    var quanti = Math.ceil(TOTALE / PER_CAPITOLO);
+    $('sel-capitolo').value = String(stato.capitolo);
+    $('b-cap-prec').disabled = stato.capitolo === 0;
+    $('b-cap-succ').disabled = stato.capitolo >= quanti - 1;
+    var ol = $('elenco-livelli');
+    ol.textContent = '';
+    var da = stato.capitolo * PER_CAPITOLO;
+    var a = Math.min(TOTALE, da + PER_CAPITOLO);
+    for (var i = da; i < a; i++) {
+      (function (i) {
+        var n = i + 1;
+        var li = document.createElement('li');
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'livello-tasto';
+        var fatto = A.completato(n);
+        var bloccato = n > sbl;
+        var difficile = F.difficile(n);
+        var num = document.createElement('span'); num.className = 'num'; num.textContent = n;
+        b.appendChild(num);
+        var etichettaStato;
+        if (bloccato) {
+          b.disabled = true;
+          b.appendChild(iconaUi('i-lucchetto'));
+          etichettaStato = 'bloccato';
+        } else if (fatto) {
+          b.classList.add('fatto');
+          b.appendChild(iconaUi('i-spunta'));
+          etichettaStato = fatto.senzaAiuti ? 'completato senza aiuti' : 'completato';
+        } else {
+          etichettaStato = 'da giocare';
+        }
+        if (difficile) { b.classList.add('difficile'); var d = document.createElement('span'); d.className = 'segno-difficile'; d.textContent = '!'; d.setAttribute('aria-hidden', 'true'); b.appendChild(d); }
+        if (i === prossimo && !fatto) b.classList.add('prossimo');
+        b.setAttribute('aria-label', 'Livello ' + n + (difficile ? ', difficile' : '') + ', ' + etichettaStato);
+        b.title = 'Livello ' + n + (difficile ? ' (difficile)' : '');
+        b.addEventListener('click', function () { S.suona('clic'); avviaLivello(i); });
+        li.appendChild(b);
+        ol.appendChild(li);
+      })(i);
+    }
+    var fatti = contaCompletati();
+    $('home-conta').textContent = 'Completati ' + fatti + ' di ' + TOTALE + ' livelli · sbloccati ' + Math.min(sbl, TOTALE);
+    var def = defLivello(prossimo);
+    $('home-prossimo').textContent = fatti >= TOTALE
       ? 'Hai completato tutti i livelli: rigiocali quando vuoi, colori e file cambiano ogni volta.'
-      : 'Si parte dal livello ' + def.id + ': ' + def.nome + '.';
+      : 'Si riparte dal livello ' + def.id + ': ' + def.nome + '.';
   }
 
   function iconaUi(id) {
@@ -244,21 +281,21 @@
     stato.inPausa = false;
     stato.indice = indice;
     chiudiFinestre();
-    var def = LIVELLI[indice];
+    var def = defLivello(indice);
     stato.p = M.nuovaPartita(def, C.ID);
     $('home').hidden = true;
     $('gioco').hidden = false;
-    $('g-numero').textContent = 'Livello ' + def.id + ' di ' + LIVELLI.length;
+    $('g-numero').textContent = 'Livello ' + def.id + ' di ' + TOTALE + (stato.p.livello.difficile ? ' \u00b7 difficile' : '');
     $('g-nome').textContent = def.nome;
     costruisciPiazzale();
     disegnaTutto();
     adattaPiazzale();
-    $('inizio-numero').textContent = 'Livello ' + def.id + ' di ' + LIVELLI.length;
+    $('inizio-numero').textContent = 'Livello ' + def.id + ' di ' + TOTALE + (stato.p.livello.difficile ? ' \u00b7 difficile' : '');
     $('t-inizio').textContent = def.nome;
     $('inizio-novita').textContent = def.novita || '';
     var ul = $('inizio-dati');
     ul.textContent = '';
-    [[stato.p.ordine.length, 'autobus'], [stato.p.totale, 'passeggeri'], [stato.p.livello.colori, 'colori']].forEach(function (v) {
+    [[stato.p.ordine.length, 'autobus'], [stato.p.totale, 'passeggeri'], [stato.p.livello.colori, 'colori'], [stato.p.slot.length, 'stalli']].forEach(function (v) {
       var li = document.createElement('li');
       var st = document.createElement('strong'); st.textContent = v[0];
       li.appendChild(st); li.appendChild(document.createTextNode(v[1]));
@@ -299,6 +336,24 @@
       pz.appendChild(el);
       stato.elGarage[g.id] = el;
     });
+    stato.elSbarre = {};
+    stato.p.sbarre.forEach(function (sb) {
+      var el = document.createElement('div');
+      el.className = 'sbarra';
+      el.style.setProperty('--x', sb.x); el.style.setProperty('--y', sb.y);
+      el.setAttribute('role', 'img');
+      var n = document.createElement('span'); n.className = 'conta-sbarra';
+      el.appendChild(n);
+      pz.appendChild(el);
+      stato.elSbarre[sb.id] = el;
+    });
+    // numeri delle catene: la chiave e il lucchetto hanno lo stesso numero
+    stato.catene = {};
+    var k = 0;
+    stato.p.ordine.forEach(function (id) {
+      var m = stato.p.mezzi[id];
+      if (m.dopo) { k++; stato.catene[id] = { numero: k, ruolo: 'lucchetto', con: m.dopo }; stato.catene[m.dopo] = { numero: k, ruolo: 'chiave', con: id }; }
+    });
   }
 
   function creaElementoMezzo(m) {
@@ -320,6 +375,15 @@
     et.appendChild(simbolo('ignoto'));
     et.appendChild(n);
     b.appendChild(vetri); b.appendChild(muso); b.appendChild(et);
+    var ct = stato.catene && stato.catene[m.id];
+    if (ct) {
+      var tag = document.createElement('span');
+      tag.className = 'catena ' + ct.ruolo;
+      tag.appendChild(iconaUi(ct.ruolo === 'chiave' ? 'i-chiave' : 'i-lucchetto'));
+      var nn = document.createElement('span'); nn.textContent = ct.numero;
+      tag.appendChild(nn);
+      b.appendChild(tag);
+    }
     b.addEventListener('click', function () { tocca(m.id); });
     return b;
   }
@@ -347,8 +411,12 @@
       presenti[id] = true;
       var el = stato.elementi[id];
       if (!el) { el = creaElementoMezzo(m); stato.elementi[id] = el; pz.appendChild(el); }
-      var libero = M.esaminaUscita(p, id, occ).libero;
+      var strada = M.esaminaUscita(p, id, occ).libero;
+      var sciolta = M.catenaSciolta(p, id);
+      var libero = strada && sciolta;
       el.classList.toggle('libero', libero);
+      var tag = el.querySelector('.catena.lucchetto');
+      if (tag) tag.classList.toggle('sciolta', sciolta);
       var eraNascosto = el.classList.contains('nascosto');
       el.classList.toggle('nascosto', m.nascosto);
       if (eraNascosto && !m.nascosto) {
@@ -366,7 +434,8 @@
       var dir = M.DIREZIONI[m.dir].nome;
       el.setAttribute('aria-label',
         descriviMezzo(m) + ', ' + m.posti + ' posti, esce ' + dir + ', ' +
-        (libero ? 'strada libera' : 'strada bloccata') +
+        (strada ? 'strada libera' : 'strada bloccata') +
+        (stato.catene[id] ? (stato.catene[id].ruolo === 'chiave' ? ', chiave della catena ' + stato.catene[id].numero : (sciolta ? ', catena ' + stato.catene[id].numero + ' sciolta' : ', legato alla catena ' + stato.catene[id].numero + ': esce dopo la sua chiave')) : '') +
         (m.garage ? ', sulla porta del garage' : ''));
     });
     Object.keys(stato.elementi).forEach(function (id) {
@@ -382,6 +451,13 @@
         : (dentro ? 'Garage: ancora ' + dentro + (dentro === 1 ? ' mezzo coperto' : ' mezzi coperti') + ' dentro' : 'Garage: nessun altro mezzo dentro'));
       pz.querySelectorAll('.baia[data-garage="' + g.id + '"]').forEach(function (b) { b.hidden = g.coda.length === 0; });
     });
+    p.sbarre.forEach(function (sb) {
+      var el = stato.elSbarre[sb.id];
+      var mancano = sb.soglia - p.partiti;
+      el.classList.toggle('alzata', mancano <= 0);
+      el.querySelector('.conta-sbarra').textContent = mancano > 0 ? mancano : '';
+      el.setAttribute('aria-label', mancano > 0 ? 'Sbarra: si alza dopo ' + (mancano === 1 ? 'un\u2019altra partenza' : 'altre ' + mancano + ' partenze') : 'Sbarra alzata');
+    });
   }
 
   function disegnaFila() {
@@ -389,7 +465,8 @@
     var ol = $('g-fila');
     ol.textContent = '';
     var resto = p.fila.length - p.testa;
-    $('g-fila-conta').textContent = resto === 1 ? '1 in fila' : resto + ' in fila';
+    var persone = M.passeggeriInFila(p);
+    $('g-fila-conta').textContent = persone === 1 ? '1 in fila' : persone + ' in fila';
     var testaEl = $('g-testa');
     testaEl.textContent = '';
     if (!resto) {
@@ -398,7 +475,7 @@
       ol.setAttribute('aria-label', 'Fila vuota');
       return;
     }
-    // quanti passeggeri entrano senza essere tagliati
+    // quanti gruppi entrano senza essere tagliati
     var stile = getComputedStyle(ol);
     var pp = parseFloat(stile.getPropertyValue('--p')) || 30;
     var spazio = ol.clientWidth - 8;
@@ -407,19 +484,31 @@
     var massimo = Math.max(1, 1 + Math.floor((spazio - largTesta - 44) / largUno));
     if (resto <= massimo + 1) massimo = Math.max(1, 1 + Math.floor((spazio - largTesta) / largUno));
     var mostrati = Math.min(resto, massimo);
+    var visibili = p.livello.filaVisibile || Infinity;
     var nomi = [];
     for (var i = 0; i < mostrati; i++) {
       var col = p.fila[p.testa + i];
+      var quanti = p.gruppi[p.testa + i] || 1;
       var li = document.createElement('li');
       li.className = 'passeggero' + (i === 0 ? ' testa' : '');
-      impostaColori(li, col);
+      li.setAttribute('aria-hidden', 'true');
       var corpo = document.createElement('span');
       corpo.className = 'corpo';
-      corpo.appendChild(simbolo(coloreDi(col).simbolo));
+      if (i >= visibili) {
+        li.classList.add('coperto');
+        corpo.appendChild(simbolo('ignoto'));
+      } else {
+        impostaColori(li, col);
+        corpo.appendChild(simbolo(coloreDi(col).simbolo));
+        if (quanti > 1) {
+          li.classList.add('coppia');
+          var due = document.createElement('span'); due.className = 'per-due'; due.textContent = '\u00d72';
+          li.appendChild(due);
+        }
+        if (i < 6) nomi.push(coloreDi(col).nome + (quanti > 1 ? ' in coppia' : ''));
+      }
       li.appendChild(corpo);
-      li.setAttribute('aria-hidden', 'true');
       ol.appendChild(li);
-      if (i < 6) nomi.push(coloreDi(col).nome);
     }
     if (resto > mostrati) {
       var altri = document.createElement('li');
@@ -429,15 +518,19 @@
       ol.appendChild(altri);
     }
     var c0 = coloreDi(p.fila[p.testa]);
+    var q0 = p.gruppi[p.testa] || 1;
     var chip = document.createElement('span');
     chip.className = 'chip';
     impostaColori(chip, c0.id);
     chip.appendChild(simbolo(c0.simbolo));
-    chip.appendChild(document.createTextNode(c0.nome));
+    chip.appendChild(document.createTextNode(c0.nome + (q0 > 1 ? ' \u00d72' : '')));
     var t = document.createElement('span'); t.className = 'testo-testa'; t.textContent = 'In testa:';
     testaEl.appendChild(t);
     testaEl.appendChild(chip);
-    ol.setAttribute('aria-label', 'Fila: in testa ' + nomeColore(c0.id) + '. Poi ' + nomi.slice(1).join(', ') + (resto > 6 ? ' e altri' : '') + '. In tutto ' + resto + '.');
+    ol.setAttribute('aria-label', 'Fila: in testa ' + nomeColore(c0.id) + (q0 > 1 ? ', una coppia' : '') +
+      (nomi.length > 1 ? '. Poi ' + nomi.slice(1).join(', ') : '') +
+      (visibili < Infinity ? '. Fila coperta: si vedono solo i primi ' + visibili : '') +
+      '. In tutto ' + persone + ' passeggeri.');
   }
 
   function disegnaAttesa() {
@@ -515,7 +608,7 @@
     var h = box.clientHeight - 18;
     if (w <= 0 || h <= 0) return;
     var c = Math.floor(Math.min(w / L.larghezza, h / L.altezza, 78));
-    c = Math.max(c, 22);
+    c = Math.max(c, 14);
     $('g-piazzale').style.setProperty('--c', c + 'px');
     $('g-piazzale').classList.toggle('piccolo', c < 34);
   }
@@ -557,6 +650,13 @@
     if (r.ostacolo.tipo === 'garage') {
       chi = 'davanti alla porta di un garage che ha ancora mezzi dentro';
       ripetiClasse(stato.elGarage[r.ostacolo.id], 'scuoti');
+    } else if (r.ostacolo.tipo === 'sbarra') {
+      var sb = p.sbarre.filter(function (x) { return x.id === r.ostacolo.id; })[0];
+      var mancano = sb.soglia - p.partiti;
+      ripetiClasse(stato.elSbarre[sb.id], 'scuoti');
+      mostraTraccia(r.celle, true);
+      messaggio('Non può uscire ' + dir + ': c\u2019è una sbarra che si alza dopo ' + (mancano === 1 ? 'un\u2019altra partenza' : 'altre ' + mancano + ' partenze') + '.', 'avviso', 3600);
+      return;
     } else {
       var o = p.mezzi[r.ostacolo.id];
       chi = daMezzo(o);
@@ -598,6 +698,13 @@
     var r = M.estrai(p, id);
     if (!r.ok) {
       if (r.motivo === 'ostruito') spiegaOstacolo(id, r);
+      else if (r.motivo === 'catena') {
+        S.suona('blocco');
+        ripetiClasse(elPrima, 'scuoti');
+        ripetiClasse(stato.elementi[r.legato], 'ostacolo');
+        var ct = stato.catene[id];
+        messaggio('Catena ' + ct.numero + ': questo autobus esce solo dopo ' + daMezzo(p.mezzi[r.legato]).replace(/^dal(l\u2019)? ?/, function (x) { return x === 'dal ' ? 'il ' : 'l\u2019'; }) + ' con la chiave ' + ct.numero + '.', 'avviso', 3600);
+      }
       else if (r.motivo === 'attesa-piena') {
         S.suona('blocco');
         ripetiClasse(elPrima, 'scuoti');
@@ -680,7 +787,11 @@
   /* Imbarco                                                             */
   /* ------------------------------------------------------------------ */
 
-  function ritmo() { return animazioniAttive() ? 110 : 30; }
+  function ritmo() {
+    if (!animazioniAttive()) return 25;
+    var t = stato.p ? stato.p.totale : 50;
+    return t > 180 ? 55 : t > 110 ? 75 : 105;
+  }
 
   async function avviaImbarco() {
     if (stato.imbarcoAttivo) return;
@@ -707,6 +818,10 @@
           S.suona('partenza');
           if (fb) partenza(fb);
           disegnaPiazzale();
+          if (e.sbarreAlzate.length) {
+            S.suona('rivela');
+            messaggio(e.sbarreAlzate.length === 1 ? 'Una sbarra si è alzata: la corsia è libera.' : e.sbarreAlzate.length + ' sbarre si sono alzate.', 'info', 2400);
+          }
         }
         if (p.esito === 'vinta') break;
         if (!(await aspetta(ritmo(), gettone))) return;
@@ -747,7 +862,11 @@
     if (M.controllaBlocco(p) !== 'bloccata') return;
     S.suona('stallo');
     var c = coloreDi(M.coloreInTesta(p));
-    $('blocco-testo').textContent = 'Tutti gli stalli sono occupati e nessun autobus in attesa è ' + c.nome + ' (' + c.nomeSimbolo + '), il colore del passeggero in testa.';
+    var coppia = M.gruppoInTesta(p) > 1;
+    var chi = coppia ? 'la coppia in testa (' + c.nome + ', ' + c.nomeSimbolo + ')' : 'il passeggero in testa (' + c.nome + ', ' + c.nomeSimbolo + ')';
+    $('blocco-testo').textContent = M.motivoBlocco(p) === 'stalli'
+      ? 'Tutti gli stalli sono occupati e nessun autobus in attesa ha posto per ' + chi + '.'
+      : 'Nessun autobus del parcheggio può uscire adesso e nessuno in attesa ha posto per ' + chi + '.';
     var aiuti = ['slot', 'rimescola', 'riordina'].filter(function (t) { return M.puoUsare(p, t).ok; });
     var b = $('b-blocco-aiuti');
     b.hidden = !aiuti.length;
@@ -829,7 +948,7 @@
     if (!stato.p || $('gioco').hidden || stato.p.esito === 'vinta') return;
     if ($('d-blocco').open) return;
     stato.inPausa = true;
-    var def = LIVELLI[stato.indice];
+    var def = defLivello(stato.indice);
     $('pausa-livello').textContent = 'Livello ' + def.id + ': ' + def.nome + '. ' + stato.p.imbarcati + ' passeggeri a bordo su ' + stato.p.totale + '.';
     apriFinestra('d-pausa');
   }
@@ -840,10 +959,10 @@
 
   function vittoria() {
     var p = stato.p;
-    var def = LIVELLI[stato.indice];
-    A.completa(def.id, p.usati, LIVELLI.length);
+    var def = defLivello(stato.indice);
+    A.completa(def.id, p.usati, TOTALE);
     S.suona('vittoria');
-    var ultimo = stato.indice >= LIVELLI.length - 1;
+    var ultimo = stato.indice >= TOTALE - 1;
     $('t-vittoria').textContent = ultimo ? 'Capolinea raggiunto!' : 'Livello completato!';
     $('vittoria-testo').textContent = ultimo
       ? 'Hai completato tutti i livelli di Autobusse. Puoi rigiocarli: colori e file cambiano ogni volta.'
@@ -956,7 +1075,7 @@
       var a = ev.target.closest('[data-azione]');
       if (!a) return;
       var az = a.dataset.azione;
-      if (az === 'successivo') avviaLivello(Math.min(stato.indice + 1, LIVELLI.length - 1));
+      if (az === 'successivo') avviaLivello(Math.min(stato.indice + 1, TOTALE - 1));
       else if (az === 'riavvia') avviaLivello(stato.indice);
       else if (az === 'menu') mostraHome();
     });
@@ -1028,7 +1147,7 @@
      senza toccare la logica. Non espone nulla che cambi le regole. */
   window.AutobusseProva = {
     stato: function () { return stato; },
-    livelli: LIVELLI
+    livelli: F
   };
 
   function avvio() {

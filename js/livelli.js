@@ -236,7 +236,7 @@
     {
       id: 12,
       nome: 'Capolinea',
-      novita: 'Sette colori, garage, sorprese e nessun margine: il gran finale.',
+      novita: 'Sette colori, garage, sorprese e nessun margine: la fine della prima parte. Dal livello 13 arrivano catene, sbarre, coppie e fila coperta.',
       mappa: [
         'aaa.bbbb.',
         'c.......d',

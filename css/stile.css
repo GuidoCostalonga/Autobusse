@@ -134,33 +134,52 @@ button { font: inherit; color: inherit; }
 .logo-bus span:nth-child(3) { left: 80px; width: 64px; border-radius: 6px 16px 6px 6px; }
 @keyframes ondeggia { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
 
+.home-conta { margin: -4px 0 12px; color: var(--tenue); font-size: .95rem; }
+.capitoli { display: flex; align-items: center; gap: 8px; width: 100%; max-width: 520px; margin-bottom: 14px; }
+.sel-capitolo {
+  flex: 1 1 auto; min-width: 0; min-height: var(--tocco);
+  font: inherit; font-weight: 700; color: var(--notte);
+  border: 3px solid var(--notte); border-radius: 14px; background: #fff; padding: 6px 10px;
+}
+.tasto-freccia {
+  flex: 0 0 auto; width: var(--tocco); height: var(--tocco);
+  border: 3px solid var(--notte); border-radius: 14px; background: #fff;
+  font-size: 1.8rem; font-weight: 900; line-height: 1; color: var(--notte); cursor: pointer;
+  box-shadow: 0 3px 0 var(--notte);
+}
+.tasto-freccia:disabled { opacity: .35; cursor: not-allowed; box-shadow: none; }
 .elenco-livelli {
   list-style: none; margin: 0; padding: 0;
-  display: grid; gap: 10px;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  display: grid; gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(58px, 1fr));
   width: 100%;
 }
 .livello-tasto {
-  width: 100%; min-height: 84px;
-  display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px;
-  padding: 10px 14px;
-  border-radius: 16px;
+  width: 100%; aspect-ratio: 1; min-height: 52px;
+  display: grid; place-items: center;
+  padding: 4px;
+  border-radius: 14px;
   border: 3px solid var(--notte);
   background: #fff;
-  box-shadow: 0 4px 0 var(--notte);
-  text-align: left; cursor: pointer;
+  box-shadow: 0 3px 0 var(--notte);
+  cursor: pointer;
   position: relative;
   touch-action: manipulation;
 }
 .livello-tasto:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--notte); }
-.livello-tasto .num { font-size: 1.5rem; font-weight: 900; color: var(--notte); line-height: 1; }
-.livello-tasto .nome { font-size: .95rem; font-weight: 600; }
-.livello-tasto .stato { font-size: .8rem; color: var(--tenue); display: flex; align-items: center; gap: 4px; }
-.livello-tasto .stato svg { width: 16px; height: 16px; fill: currentColor; }
+.livello-tasto .num { font-size: 1.15rem; font-weight: 900; color: var(--notte); line-height: 1; }
+.livello-tasto svg { position: absolute; bottom: 4px; right: 4px; width: 15px; height: 15px; fill: var(--tenue); }
 .livello-tasto.fatto { background: #eaf7ee; }
-.livello-tasto.fatto .stato { color: var(--successo); font-weight: 700; }
-.livello-tasto.prossimo { background: #fff6d6; border-color: var(--accento-scuro); box-shadow: 0 4px 0 var(--accento-scuro); }
-.livello-tasto:disabled { cursor: not-allowed; opacity: .55; box-shadow: none; border-style: dashed; background: transparent; }
+.livello-tasto.fatto svg { fill: var(--successo); }
+.livello-tasto.prossimo { background: var(--accento); border-color: var(--accento-scuro); box-shadow: 0 3px 0 var(--accento-scuro); }
+.livello-tasto:disabled { cursor: not-allowed; opacity: .5; box-shadow: none; border-style: dashed; background: transparent; }
+.segno-difficile {
+  display: inline-grid; place-items: center;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: var(--pericolo); color: #fff; font-weight: 900; font-size: .75rem;
+}
+.livello-tasto .segno-difficile { position: absolute; top: -6px; right: -6px; border: 2px solid #fff; }
+.legenda-livelli { margin: 10px 0 0; font-size: .85rem; color: var(--tenue); display: flex; align-items: center; gap: 6px; }
 
 /* ---------- Partita ---------- */
 .gioco { display: flex; flex-direction: column; }
@@ -241,6 +260,14 @@ button { font: inherit; color: inherit; }
 .passeggero .corpo svg { width: 58%; height: 58%; fill: currentColor; }
 .passeggero.testa { width: calc(var(--p) * 1.25); height: calc(var(--p) * 1.6); }
 .passeggero.testa .corpo { box-shadow: 0 0 0 3px #fff, 0 0 0 6px var(--notte); }
+.passeggero.coppia .corpo { box-shadow: calc(var(--p) * .18) 0 0 -2px var(--scuro); }
+.passeggero .per-due {
+  position: absolute; right: -5px; top: -3px; z-index: 2;
+  font-size: .64rem; font-weight: 900; line-height: 1;
+  background: var(--notte); color: #fff; border-radius: 99px; padding: 2px 4px;
+}
+.passeggero.coperto { --fondo: #c9ced9; --scuro: #8a92a5; --testo: #4b5266; }
+.passeggero.coperto::before { background: #dfe3ea; }
 .fila .altri {
   flex: 0 0 auto; align-self: center;
   font-size: .85rem; font-weight: 700; color: var(--tenue);
@@ -418,6 +445,40 @@ button { font: inherit; color: inherit; }
   width: var(--c); height: var(--c);
   background: repeating-linear-gradient(45deg, rgba(255, 201, 40, .22) 0 6px, transparent 6px 12px);
 }
+
+/* Sbarre */
+.sbarra {
+  position: absolute;
+  left: calc(var(--x) * var(--c) + var(--g)); top: calc(var(--y) * var(--c) + var(--g));
+  width: calc(var(--c) - 2 * var(--g)); height: calc(var(--c) - 2 * var(--g));
+  border-radius: calc(var(--c) * .14);
+  background: repeating-linear-gradient(45deg, #e0393e 0 calc(var(--c) * .14), #fff calc(var(--c) * .14) calc(var(--c) * .28));
+  border: calc(var(--c) * .05) solid #7a1018;
+  display: grid; place-items: center;
+  transition: transform .35s ease, opacity .35s ease;
+  transform-origin: left center;
+}
+.sbarra .conta-sbarra {
+  min-width: calc(var(--c) * .5); height: calc(var(--c) * .5); padding: 0 3px;
+  border-radius: 99px; background: #fff; color: #7a1018; border: 2px solid #7a1018;
+  font-weight: 900; font-size: calc(var(--c) * .3);
+  display: grid; place-items: center;
+}
+.sbarra.alzata { transform: scaleY(.15); opacity: 0; pointer-events: none; }
+
+/* Catene: chiave e lucchetto con lo stesso numero */
+.mezzo .catena {
+  position: absolute; top: calc(var(--c) * -.2); left: calc(var(--c) * -.14);
+  height: calc(var(--c) * .44); min-width: calc(var(--c) * .44); padding: 0 calc(var(--c) * .06);
+  border-radius: 99px; border: 2px solid var(--notte);
+  display: inline-flex; align-items: center; gap: 1px;
+  font-size: calc(var(--c) * .26); font-weight: 900; line-height: 1;
+  z-index: 3; pointer-events: none;
+}
+.mezzo .catena svg { width: calc(var(--c) * .26); height: calc(var(--c) * .26); fill: currentColor; position: static; }
+.mezzo .catena.chiave { background: var(--accento); color: #231a00; }
+.mezzo .catena.lucchetto { background: #fff; color: var(--notte); }
+.mezzo .catena.lucchetto.sciolta { background: #dff3e4; color: var(--successo); border-color: var(--successo); }
 
 /* Celle piccole: si toglie il superfluo e si ingrandiscono simbolo e numero */
 .piazzale.piccolo .mezzo .vetri { display: none; }

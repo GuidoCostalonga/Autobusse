@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Autobusse</title>
-  <meta name="description" content="Autobusse: libera il parcheggio, fai uscire gli autobus nell'ordine giusto e porta ogni passeggero sul mezzo del suo colore. Dodici livelli da giocare nel navigatore, senza registrazione.">
+  <meta name="description" content="Autobusse: libera il parcheggio, fai uscire gli autobus nell'ordine giusto e porta ogni passeggero sul mezzo del suo colore. Oltre mille livelli da giocare nel navigatore, senza registrazione.">
   <!-- Pagina non indicizzata: non è privata, chi conosce l'indirizzo può aprirla. -->
   <meta name="robots" content="noindex, nofollow">
   <meta name="googlebot" content="noindex, nofollow">
@@ -36,6 +36,7 @@
     <symbol id="i-rimescola" viewBox="0 0 24 24"><path d="M16 3l5 4-5 4V8.5h-2.2c-1.4 0-2.2.6-3.1 2l-3 4.7C6.4 17.3 5 18.5 2.5 18.5H2V16h.5c1.4 0 2.2-.6 3.1-2l3-4.7C9.9 7.2 11.3 6 13.8 6H16zM2 5.5h.5c1.9 0 3.2.7 4.3 2l-1.5 2.2C4.6 8.6 3.8 8 2.5 8H2zm14 8 5 4-5 4V18.5h-2.2c-1.9 0-3.2-.7-4.3-2l1.5-2.2c.7 1.1 1.5 1.7 2.8 1.7H16z"/></symbol>
     <symbol id="i-lucchetto" viewBox="0 0 24 24"><path d="M7 10V7a5 5 0 0 1 10 0v3h1.5v11h-13V10zm2.5 0h5V7a2.5 2.5 0 0 0-5 0z"/></symbol>
     <symbol id="i-spunta" viewBox="0 0 24 24"><path d="M9.5 16.2 4.8 11.5 3 13.3l6.5 6.5L21 8.3l-1.8-1.8z"/></symbol>
+    <symbol id="i-chiave" viewBox="0 0 24 24"><path d="M7.5 4a5.5 5.5 0 1 0 5.2 7.3H15v2.2h2.4v-2.2H19v2.7h2.5v-5.2h-8.8A5.5 5.5 0 0 0 7.5 4zm0 3a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z"/></symbol>
     <symbol id="i-garage" viewBox="0 0 24 24"><path d="M12 2 1.5 8.5V22h21V8.5zM5 12h14v10h-2.2v-7.8H7.2V22H5z"/></symbol>
   </svg>
 
@@ -51,7 +52,15 @@
         <button id="b-gioca" class="tasto tasto-grande tasto-primario" type="button">Gioca</button>
         <p id="home-prossimo" class="home-prossimo"></p>
         <h2 class="titoletto">Livelli</h2>
-        <ol id="elenco-livelli" class="elenco-livelli"></ol>
+        <p id="home-conta" class="home-conta"></p>
+        <div class="capitoli">
+          <button id="b-cap-prec" class="tasto-freccia" type="button" aria-label="Capitolo precedente">&lsaquo;</button>
+          <label class="vis-nascosto" for="sel-capitolo">Capitolo</label>
+          <select id="sel-capitolo" class="sel-capitolo"></select>
+          <button id="b-cap-succ" class="tasto-freccia" type="button" aria-label="Capitolo successivo">&rsaquo;</button>
+        </div>
+        <ol id="elenco-livelli" class="elenco-livelli" aria-label="Livelli del capitolo"></ol>
+        <p class="legenda-livelli"><span class="segno-difficile" aria-hidden="true">!</span> livello difficile</p>
         <div class="home-azioni">
           <button id="b-home-aiuto" class="tasto" type="button">Come si gioca</button>
           <button id="b-home-impostazioni" class="tasto" type="button">Impostazioni</button>
@@ -224,6 +233,19 @@
         <li><strong>Colore nascosto</strong>: grigio con il punto di domanda. Il colore si scopre quando la sua strada si libera.</li>
         <li><strong>Garage</strong>: fa uscire un mezzo alla volta. Il numero dice quanti ne restano dentro, coperti.</li>
         <li>Più il mezzo è lungo, più posti ha: dai minibus da 3 al gran turismo da 40.</li>
+        <li><strong>Catene</strong>: l'autobus con il lucchetto numerato esce solo dopo quello con la chiave dello stesso numero.</li>
+        <li><strong>Sbarre</strong>: chiudono una casella e si alzano dopo il numero di partenze scritto sopra.</li>
+      </ul>
+      <h3>La fila</h3>
+      <ul>
+        <li><strong>Coppie</strong>: il passeggero con «×2» è una coppia; sale solo su un autobus del suo colore con almeno due posti liberi.</li>
+        <li><strong>Fila coperta</strong>: in alcuni livelli si vedono solo i primi passeggeri; gli altri sono grigi con il punto di domanda.</li>
+        <li>Se nessuno può salire e nessun autobus può uscire, la fermata si blocca anche con qualche stallo libero.</li>
+      </ul>
+      <h3>I livelli</h3>
+      <ul>
+        <li>1012 livelli in capitoli da 50. I primi 12 sono disegnati a mano; gli altri sono costruiti dal gioco, sempre uguali per tutti e tutti risolvibili senza potenziamenti.</li>
+        <li>Ogni decimo livello è difficile: meno stalli, nessun margine, più mezzi nascosti.</li>
       </ul>
       <h3>I potenziamenti</h3>
       <ul>
@@ -249,6 +271,7 @@
   <script src="js/colori.js"></script>
   <script src="js/motore.js"></script>
   <script src="js/livelli.js"></script>
+  <script src="js/fabbrica-livelli.js"></script>
   <script src="js/archivio.js"></script>
   <script src="js/suoni.js"></script>
   <script src="js/interfaccia.js"></script>

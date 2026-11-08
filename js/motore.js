@@ -3,9 +3,9 @@
  *
  * Nessun accesso al DOM: il modulo funziona identico nel navigatore e in Node,
  * dove le prove lo caricano con require(). Tutte le regole stanno qui:
- * geometria del parcheggio, uscite, zona di attesa, fila dei passeggeri,
- * imbarco, partenza, blocco, vittoria, potenziamenti, generazione delle file
- * risolvibili e risolutore di controllo.
+ * geometria del parcheggio, uscite, catene, sbarre, zona di attesa, fila dei
+ * passeggeri (anche a coppie), imbarco, partenza, blocco, vittoria,
+ * potenziamenti, generazione delle file risolvibili e risolutore di controllo.
  */
 (function (radice, fabbrica) {
   'use strict';
@@ -40,7 +40,7 @@
     6: 'Gran turismo'
   };
 
-  /* Quanti passeggeri considera «Riordina fila». */
+  /* Quanti gruppi della fila considera «Riordina fila». */
   var FINESTRA_RIORDINO = 10;
 
   /* ------------------------------------------------------------------ */
@@ -71,21 +71,25 @@
   /* ------------------------------------------------------------------ */
 
   /*
-   * Formato della definizione (vedi js/livelli.js):
+   * Formato della definizione (vedi js/livelli.js e js/fabbrica-livelli.js):
    *   mappa:  righe di testo, un carattere per casella.
    *           '.' casella libera, una lettera per ogni autobus (le caselle
-   *           con la stessa lettera formano il mezzo), una cifra per un garage.
-   *   mezzi:  { lettera: 'E' | 'S?' | 'O:3' ... }
+   *           con la stessa lettera formano il mezzo), una cifra per un garage,
+   *           '*' per una sbarra.
+   *   mezzi:  { lettera: 'E' | 'S?' | 'O:3' | 'N>b' ... }
    *           direzione di uscita (N, S, E, O), '?' colore nascosto,
-   *           ':n' posti diversi da quelli predefiniti.
+   *           ':n' posti diversi da quelli predefiniti,
+   *           '>x' legato con una catena: esce solo dopo il mezzo «x».
    *   garage: { cifra: { dir: 'S', mezzi: ['3', '2:4'] } }
-   *           i mezzi in fila nel garage, dal primo all'ultimo; ogni voce è
-   *           la lunghezza, con ':n' facoltativo per i posti.
+   *   sbarre: [n, ...] partenze necessarie per alzare ogni sbarra, nell'ordine
+   *           di lettura della mappa (da sinistra a destra, dall'alto in basso).
+   *   coppie: da 0 a 1, quota di passeggeri che viaggiano in coppia.
+   *   filaVisibile: quanti passeggeri della fila si vedono (null: tutti).
    */
   function leggiSpecMezzo(spec, chiave, errori) {
-    var m = /^([NSEO])(\?)?(?::(\d+))?$/.exec(String(spec));
+    var m = /^([NSEO])(\?)?(?::(\d+))?(?:>([A-Za-z]))?$/.exec(String(spec));
     if (!m) { errori.push('Mezzo «' + chiave + '»: specifica non valida «' + spec + '»'); return null; }
-    return { dir: m[1], nascosto: !!m[2], posti: m[3] ? Number(m[3]) : null };
+    return { dir: m[1], nascosto: !!m[2], posti: m[3] ? Number(m[3]) : null, dopo: m[4] || null };
   }
 
   function interpretaLivello(def) {
@@ -99,11 +103,13 @@
 
     var celleLettera = {};
     var garageCelle = {};
+    var celleSbarre = [];
     for (var y = 0; y < alt; y++) {
       for (var x = 0; x < larg; x++) {
         var c = righe[y][x] || '.';
         if (c === '.') continue;
-        if (/[0-9]/.test(c)) {
+        if (c === '*') celleSbarre.push({ x: x, y: y });
+        else if (/[0-9]/.test(c)) {
           if (garageCelle[c]) errori.push('Garage «' + c + '» ripetuto');
           garageCelle[c] = { x: x, y: y };
         } else if (/[A-Za-z]/.test(c)) {
@@ -133,7 +139,7 @@
       }
       if (lun < 2 || lun > 6) { errori.push('Mezzo «' + lettera + '»: lunghezza ' + lun + ' fuori misura'); return; }
       var dirOrizz = spec.dir === 'E' || spec.dir === 'O';
-      if (dirOrizz !== orizzontale || (lun > 1 && dirOrizz === verticale)) {
+      if (dirOrizz !== orizzontale || dirOrizz === verticale) {
         errori.push('Mezzo «' + lettera + '»: direzione ' + spec.dir + ' non coerente con la posizione'); return;
       }
       mezzi.push({
@@ -141,11 +147,15 @@
         x: minX, y: minY, dir: spec.dir, lun: lun,
         posti: spec.posti || POSTI_PREDEFINITI[lun],
         nascosto: spec.nascosto,
+        dopo: spec.dopo,
         garage: null
       });
     });
     Object.keys(specMezzi).forEach(function (k) {
       if (!celleLettera[k]) errori.push('Mezzo «' + k + '» descritto ma assente dalla mappa');
+    });
+    mezzi.forEach(function (m) {
+      if (m.dopo && (m.dopo === m.id || !celleLettera[m.dopo])) errori.push('Mezzo «' + m.id + '»: catena verso un mezzo inesistente');
     });
 
     var garage = [];
@@ -178,10 +188,16 @@
         else if (g.dir === 'O') { mx = pos.x - v.lun; my = pos.y; }
         else if (g.dir === 'S') { mx = pos.x; my = pos.y + 1; }
         else { mx = pos.x; my = pos.y - v.lun; }
-        mezzi.push({ id: id, x: mx, y: my, dir: g.dir, lun: v.lun, posti: v.posti, nascosto: false, garage: idGarage });
+        mezzi.push({ id: id, x: mx, y: my, dir: g.dir, lun: v.lun, posti: v.posti, nascosto: false, dopo: null, garage: idGarage });
         return id;
       });
       garage.push({ id: idGarage, cifra: cifra, x: pos.x, y: pos.y, dir: g.dir, baia: celleBaia, coda: coda });
+    });
+
+    var soglie = def.sbarre || [];
+    if (soglie.length !== celleSbarre.length) errori.push('Sbarre: ' + celleSbarre.length + ' nella mappa, ' + soglie.length + ' soglie');
+    var sbarre = celleSbarre.map(function (c, i) {
+      return { id: 'S' + (i + 1), x: c.x, y: c.y, soglia: Number(soglie[i]) || 1 };
     });
 
     mezzi.forEach(function (m) {
@@ -192,14 +208,18 @@
       id: def.id,
       nome: def.nome,
       novita: def.novita || '',
+      difficile: !!def.difficile,
       larghezza: larg,
       altezza: alt,
       mezzi: mezzi,
       garage: garage,
+      sbarre: sbarre,
       colori: def.colori,
       attesa: def.attesa,
       margine: def.margine == null ? 1 : def.margine,
       intreccio: def.intreccio == null ? 0.3 : def.intreccio,
+      coppie: def.coppie || 0,
+      filaVisibile: def.filaVisibile || null,
       potenziamenti: {
         slot: (def.potenziamenti && def.potenziamenti.slot) || 0,
         riordina: (def.potenziamenti && def.potenziamenti.riordina) || 0,
@@ -237,10 +257,11 @@
     return r;
   }
 
+  function sbarraAlzata(p, s) { return p.partiti >= s.soglia; }
+
   /* Mappa di occupazione: per ogni casella, che cosa la occupa.
      La cella del garage è sempre un ostacolo; la baia è riservata finché
-     il garage contiene mezzi (il mezzo sulla porta la occupa, il resto è
-     riservato al garage). */
+     il garage contiene mezzi. Una sbarra è un ostacolo finché non si alza. */
   function occupazione(p) {
     var L = p.livello;
     var g = new Array(L.larghezza * L.altezza).fill(null);
@@ -249,6 +270,7 @@
       metti(ga.x, ga.y, { tipo: 'garage', id: ga.id });
       if (ga.coda.length) ga.baia.forEach(function (c) { metti(c.x, c.y, { tipo: 'garage', id: ga.id }); });
     });
+    p.sbarre.forEach(function (s) { if (!sbarraAlzata(p, s)) metti(s.x, s.y, { tipo: 'sbarra', id: s.id }); });
     p.ordine.forEach(function (id) {
       var m = p.mezzi[id];
       if (m.stato !== 'piazzale') return;
@@ -273,17 +295,43 @@
     return { libero: true, ostacolo: null, cella: null, celle: celle };
   }
 
+  /* La catena è sciolta quando il mezzo a cui è legato ha lasciato il parcheggio. */
+  function catenaSciolta(p, id) {
+    var m = p.mezzi[id];
+    if (!m.dopo) return true;
+    var s = p.mezzi[m.dopo].stato;
+    return s !== 'piazzale' && s !== 'garage';
+  }
+
+  /* Un mezzo può uscire adesso? Strada libera e catena sciolta. */
+  function puoUscire(p, id, occ) {
+    var m = p.mezzi[id];
+    return m.stato === 'piazzale' && catenaSciolta(p, id) && esaminaUscita(p, id, occ).libero;
+  }
+
+  function mezziLiberi(p) {
+    var occ = occupazione(p);
+    return p.ordine.filter(function (id) { return puoUscire(p, id, occ); });
+  }
+
   /* ------------------------------------------------------------------ */
   /* Controllo di un livello                                             */
   /* ------------------------------------------------------------------ */
 
+  /*
+   * Controllo statico: geometria corretta e parcheggio svuotabile.
+   * Togliere un mezzo non chiude mai una strada e non riallaccia catene,
+   * quindi basta togliere via via un mezzo libero. Le sbarre si considerano
+   * alzate dopo tanti mezzi usciti quanti la soglia (ogni mezzo uscito prima
+   * o poi parte); il controllo esatto con le partenze vere lo fa il generatore
+   * della fila, che scarta le partite in cui la simulazione si ferma.
+   */
   function validaLivello(def, numColoriDisponibili) {
     var L = interpretaLivello(def);
     var errori = L.errori.slice();
     var avvisi = [];
     if (errori.length) return { ok: false, errori: errori, avvisi: avvisi, livello: L };
 
-    // Sovrapposizioni (comprese le baie dei garage e le celle dei garage)
     var occ = {};
     function prendi(x, y, chi) {
       if (x < 0 || y < 0 || x >= L.larghezza || y >= L.altezza) { errori.push(chi + ' fuori mappa'); return; }
@@ -296,6 +344,7 @@
       prendi(g.x, g.y, g.id);
       g.baia.forEach(function (c) { prendi(c.x, c.y, g.id); });
     });
+    L.sbarre.forEach(function (s) { prendi(s.x, s.y, s.id); });
     if (!(L.colori >= 1 && L.colori <= numColoriDisponibili)) errori.push('Numero di colori non valido');
     if (!(L.attesa >= 2 && L.attesa <= 7)) errori.push('Zona di attesa non valida');
     if (L.attesa - L.margine < 1) errori.push('Margine troppo ampio');
@@ -303,19 +352,16 @@
     if (totMezzi < L.colori) errori.push('Meno mezzi che colori');
     if (errori.length) return { ok: false, errori: errori, avvisi: avvisi, livello: L };
 
-    // Il parcheggio deve potersi svuotare: si tolgono via via i mezzi liberi.
-    // L'occupazione è monotona (togliere un mezzo non chiude mai una strada),
-    // quindi se questo procedimento si ferma il parcheggio è bloccato davvero.
     var p = creaStatoGrezzo(L);
     var tolti = 0;
     var avanzato = true;
     while (avanzato) {
       avanzato = false;
+      p.partiti = tolti;
       var occF = occupazione(p);
       for (var i = 0; i < p.ordine.length; i++) {
         var id = p.ordine[i];
-        if (p.mezzi[id].stato !== 'piazzale') continue;
-        if (esaminaUscita(p, id, occF).libero) {
+        if (puoUscire(p, id, occF)) {
           togliDalPiazzale(p, id);
           p.mezzi[id].stato = 'partito';
           tolti++; avanzato = true;
@@ -325,14 +371,11 @@
     }
     if (tolti !== totMezzi) errori.push('Il parcheggio non si può svuotare: ' + (totMezzi - tolti) + ' mezzi restano incastrati');
 
-    // I mezzi nascosti dovrebbero partire coperti
     var p0 = creaStatoGrezzo(L);
     var occ0 = occupazione(p0);
     L.mezzi.forEach(function (m) {
       if (m.nascosto && esaminaUscita(p0, m.id, occ0).libero) avvisi.push('Il mezzo nascosto «' + m.id + '» parte già libero');
     });
-    // Nessun percorso deve passare sopra un garage: sarebbe un blocco perpetuo
-    // (già escluso dal controllo di svuotamento, qui solo per un messaggio chiaro).
     return { ok: errori.length === 0, errori: errori, avvisi: avvisi, livello: L };
   }
 
@@ -346,7 +389,7 @@
     L.mezzi.forEach(function (m) {
       mezzi[m.id] = {
         id: m.id, x: m.x, y: m.y, dir: m.dir, lun: m.lun, posti: m.posti,
-        rimasti: m.posti, nascosto: m.nascosto, garage: m.garage,
+        rimasti: m.posti, nascosto: m.nascosto, garage: m.garage, dopo: m.dopo,
         colore: null, stato: m.garage ? 'garage' : 'piazzale', pronto: false, arrivo: 0
       };
       ordine.push(m.id);
@@ -362,11 +405,14 @@
       mezzi: mezzi,
       ordine: ordine,
       garage: garage,
+      sbarre: L.sbarre,
       slot: slot,
       fila: [],
+      gruppi: [],
       testa: 0,
       imbarcati: 0,
       totale: 0,
+      partiti: 0,
       contatoreArrivi: 0,
       esito: null,
       potenziamenti: { slot: L.potenziamenti.slot, riordina: L.potenziamenti.riordina, rimescola: L.potenziamenti.rimescola },
@@ -396,7 +442,7 @@
       var m = p.mezzi[k];
       mezzi[k] = {
         id: m.id, x: m.x, y: m.y, dir: m.dir, lun: m.lun, posti: m.posti, rimasti: m.rimasti,
-        nascosto: m.nascosto, garage: m.garage, colore: m.colore, stato: m.stato, pronto: m.pronto, arrivo: m.arrivo
+        nascosto: m.nascosto, garage: m.garage, dopo: m.dopo, colore: m.colore, stato: m.stato, pronto: m.pronto, arrivo: m.arrivo
       };
     });
     return {
@@ -404,11 +450,14 @@
       mezzi: mezzi,
       ordine: p.ordine,
       garage: p.garage.map(function (g) { return { id: g.id, x: g.x, y: g.y, dir: g.dir, baia: g.baia, coda: g.coda.slice() }; }),
+      sbarre: p.sbarre,
       slot: p.slot.map(function (s) { return { mezzo: s.mezzo, extra: s.extra }; }),
       fila: p.fila.slice(),
+      gruppi: p.gruppi.slice(),
       testa: p.testa,
       imbarcati: p.imbarcati,
       totale: p.totale,
+      partiti: p.partiti,
       contatoreArrivi: p.contatoreArrivi,
       esito: p.esito,
       potenziamenti: { slot: p.potenziamenti.slot, riordina: p.potenziamenti.riordina, rimescola: p.potenziamenti.rimescola },
@@ -451,6 +500,17 @@
     return p.testa < p.fila.length ? p.fila[p.testa] : null;
   }
 
+  function gruppoInTesta(p) {
+    return p.testa < p.fila.length ? (p.gruppi[p.testa] || 1) : 0;
+  }
+
+  /* Passeggeri (non gruppi) ancora a terra. */
+  function passeggeriInFila(p) {
+    var n = 0;
+    for (var i = p.testa; i < p.fila.length; i++) n += p.gruppi[i] || 1;
+    return n;
+  }
+
   /* ------------------------------------------------------------------ */
   /* Azioni                                                              */
   /* ------------------------------------------------------------------ */
@@ -467,6 +527,7 @@
     if (!m || m.stato !== 'piazzale') return { ok: false, motivo: 'non-disponibile' };
     var esame = esaminaUscita(p, id);
     if (!esame.libero) return { ok: false, motivo: 'ostruito', ostacolo: esame.ostacolo, cella: esame.cella, celle: esame.celle };
+    if (!catenaSciolta(p, id)) return { ok: false, motivo: 'catena', legato: m.dopo, celle: esame.celle };
     var indice = -1;
     for (var i = 0; i < p.slot.length; i++) { if (!p.slot[i].mezzo) { indice = i; break; } }
     if (indice < 0) return { ok: false, motivo: 'attesa-piena', celle: esame.celle };
@@ -487,40 +548,44 @@
     if (m && m.stato === 'attesa') m.pronto = true;
   }
 
-  /* Sceglie il mezzo che accoglie il passeggero in testa: tra quelli pronti
-     del suo colore, quello con meno posti rimasti (parte prima), a parità
-     il più a sinistra. */
-  function scegliMezzoPer(p, colore) {
+  /* Sceglie il mezzo che accoglie il gruppo in testa: tra quelli pronti
+     del suo colore con posto per tutto il gruppo, quello con meno posti
+     rimasti (parte prima), a parità il più a sinistra. */
+  function scegliMezzoPer(p, colore, quanti) {
     var scelto = -1, minimo = Infinity;
     for (var i = 0; i < p.slot.length; i++) {
       var id = p.slot[i].mezzo;
       if (!id) continue;
       var m = p.mezzi[id];
-      if (m.pronto && m.colore === colore && m.rimasti > 0 && m.rimasti < minimo) { minimo = m.rimasti; scelto = i; }
+      if (m.pronto && m.colore === colore && m.rimasti >= quanti && m.rimasti < minimo) { minimo = m.rimasti; scelto = i; }
     }
     return scelto;
   }
 
-  /* Fa salire un solo passeggero, se possibile. Restituisce null se nessuno
-     può salire. */
+  /* Fa salire il gruppo in testa (uno o due passeggeri), se possibile.
+     Restituisce null se nessuno può salire. */
   function imbarcaUno(p) {
     if (p.esito === 'vinta') return null;
     var colore = coloreInTesta(p);
     if (colore == null) return null;
-    var i = scegliMezzoPer(p, colore);
+    var quanti = gruppoInTesta(p);
+    var i = scegliMezzoPer(p, colore, quanti);
     if (i < 0) return null;
     var id = p.slot[i].mezzo;
     var m = p.mezzi[id];
-    m.rimasti--;
+    m.rimasti -= quanti;
     p.testa++;
-    p.imbarcati++;
-    var esito = { mezzo: id, slot: i, colore: colore, partito: false, slotRimosso: false };
+    p.imbarcati += quanti;
+    var esito = { mezzo: id, slot: i, colore: colore, quanti: quanti, partito: false, slotRimosso: false, sbarreAlzate: [] };
     if (m.rimasti === 0) {
       m.stato = 'partito';
       m.pronto = false;
       esito.partito = true;
+      p.partiti++;
+      p.sbarre.forEach(function (s) { if (s.soglia === p.partiti) esito.sbarreAlzate.push(s.id); });
       if (p.slot[i].extra) { p.slot.splice(i, 1); esito.slotRimosso = true; }
       else p.slot[i].mezzo = null;
+      if (esito.sbarreAlzate.length) esito.rivelati = aggiornaRivelati(p);
     }
     if (p.imbarcati >= p.totale && restantiNelParcheggio(p) === 0 && mezziInAttesa(p).length === 0) p.esito = 'vinta';
     if (p.esito === 'bloccata') p.esito = null;
@@ -533,17 +598,28 @@
     return n;
   }
 
-  /* Da chiamare quando non c'è nulla in movimento: segna il blocco se tutti
-     gli stalli sono pieni e nessun mezzo in attesa accoglie il passeggero
-     in testa. */
+  /*
+   * Da chiamare quando non c'è nulla in movimento. La fermata è bloccata se
+   * nessuno può salire e non si può far uscire nessun mezzo: o perché gli
+   * stalli sono tutti occupati, o perché nel parcheggio nessun mezzo ha la
+   * strada libera (per esempio dietro una sbarra ancora abbassata).
+   */
   function controllaBlocco(p) {
     if (p.esito === 'vinta') return p.esito;
     var colore = coloreInTesta(p);
     if (colore == null) return p.esito;
-    if (slotLiberi(p) > 0) { if (p.esito === 'bloccata') p.esito = null; return p.esito; }
-    var serve = mezziInAttesa(p).some(function (m) { return m.colore === colore && m.rimasti > 0; });
-    p.esito = serve ? null : 'bloccata';
+    var quanti = gruppoInTesta(p);
+    var serve = mezziInAttesa(p).some(function (m) { return m.colore === colore && m.rimasti >= quanti; });
+    if (serve) { if (p.esito === 'bloccata') p.esito = null; return p.esito; }
+    var puoEstrarre = slotLiberi(p) > 0 && mezziLiberi(p).length > 0;
+    p.esito = puoEstrarre ? null : 'bloccata';
     return p.esito;
+  }
+
+  /* Motivo del blocco, per spiegarlo al giocatore. */
+  function motivoBlocco(p) {
+    if (slotLiberi(p) === 0) return 'stalli';
+    return 'parcheggio';
   }
 
   /* ------------------------------------------------------------------ */
@@ -556,20 +632,22 @@
    * mezzi in attesa, facendo uscire i mezzi nell'ordine «ordine».
    * La fila nasce simulando proprio quella strategia con le regole vere,
    * quindi la soluzione esiste per costruzione; poi viene ricontrollata.
+   * Con «coppie» > 0 alcuni passeggeri viaggiano in coppia: la coppia nasce
+   * solo da un mezzo che ha ancora almeno due posti.
    */
-  function costruisciFila(p, casuale, limite, intreccio) {
+  function costruisciFila(p, casuale, limite, intreccio, coppie) {
     var s = clona(p);
     s.fila = s.fila.slice(0, s.testa);
+    s.gruppi = s.gruppi.slice(0, s.testa);
     s.esito = null;
     Object.keys(s.mezzi).forEach(function (k) { if (s.mezzi[k].stato === 'attesa') s.mezzi[k].pronto = true; });
     var nuova = [];
+    var gruppi = [];
     var ordine = [];
     var sicurezza = 100000;
     while (sicurezza-- > 0) {
-      // riempie la zona di attesa fino al limite
       while (mezziInAttesa(s).length < limite && slotLiberi(s) > 0) {
-        var occ = occupazione(s);
-        var liberi = s.ordine.filter(function (id) { return s.mezzi[id].stato === 'piazzale' && esaminaUscita(s, id, occ).libero; });
+        var liberi = mezziLiberi(s);
         if (!liberi.length) break;
         var scelto = liberi[Math.floor(casuale() * liberi.length)];
         estrai(s, scelto, { pronto: true });
@@ -578,15 +656,18 @@
       var inAttesa = mezziInAttesa(s).filter(function (m) { return m.rimasti > 0; });
       if (!inAttesa.length) {
         if (restantiNelParcheggio(s) === 0) break;
-        return null; // parcheggio incastrato: non dovrebbe mai accadere
+        return null; // parcheggio fermo (per esempio dietro una sbarra): partita scartata
       }
       inAttesa.sort(function (a, b) { return a.arrivo - b.arrivo; });
       var mezzo = casuale() < intreccio ? inAttesa[Math.floor(casuale() * inAttesa.length)] : inAttesa[0];
+      var quanti = (coppie && mezzo.rimasti >= 2 && casuale() < coppie) ? 2 : 1;
       nuova.push(mezzo.colore);
+      gruppi.push(quanti);
       s.fila.push(mezzo.colore);
+      s.gruppi.push(quanti);
       if (!imbarcaUno(s)) return null;
     }
-    return { fila: nuova, ordine: ordine };
+    return { fila: nuova, gruppi: gruppi, ordine: ordine };
   }
 
   /* Ripete la strategia di riferimento sullo stato vero e conferma la vittoria. */
@@ -609,11 +690,14 @@
     return s.esito === 'vinta';
   }
 
-  function contaColori(fila, da) {
+  /* Passeggeri per colore (le coppie contano due). */
+  function contaColori(fila, da, gruppi) {
     var c = {};
-    for (var i = da || 0; i < fila.length; i++) c[fila[i]] = (c[fila[i]] || 0) + 1;
+    for (var i = da || 0; i < fila.length; i++) c[fila[i]] = (c[fila[i]] || 0) + ((gruppi && gruppi[i]) || 1);
     return c;
   }
+
+  function contaFila(p) { return contaColori(p.fila, p.testa, p.gruppi); }
 
   function stessiConteggi(a, b) {
     var ka = Object.keys(a), kb = Object.keys(b);
@@ -629,13 +713,14 @@
   }
 
   /*
-   * Crea una partita nuova e risolvibile.
-   *   livelloDef: definizione da js/livelli.js
+   * Crea una partita nuova e risolvibile senza potenziamenti.
+   *   livelloDef: definizione del livello
    *   colori: elenco degli identificativi di colore disponibili (in ordine)
    *   seme: numero per la riproducibilità
+   * Restituisce null se in 60 tentativi non nasce una partita valida.
    */
-  function nuovaPartita(livelloDef, colori, seme) {
-    var L = interpretaLivello(livelloDef);
+  function provaPartita(livelloDef, colori, seme, L) {
+    L = L || interpretaLivello(livelloDef);
     if (L.errori.length) throw new Error('Livello ' + livelloDef.id + ': ' + L.errori.join('; '));
     var casuale = creaCasuale(seme == null ? Math.floor(Math.random() * 4294967296) : seme);
     var usati = colori.slice(0, L.colori);
@@ -644,18 +729,25 @@
       var p = creaStatoGrezzo(L);
       assegnaColori(p, usati, casuale);
       p.totale = L.mezzi.reduce(function (a, m) { return a + m.posti; }, 0);
-      var gen = costruisciFila(p, casuale, limite, L.intreccio);
+      var gen = costruisciFila(p, casuale, limite, L.intreccio, L.coppie);
       if (!gen) continue;
       p.fila = gen.fila;
+      p.gruppi = gen.gruppi;
       p.testa = 0;
-      if (gen.fila.length !== p.totale) continue;
+      if (passeggeriInFila(p) !== p.totale) continue;
       if (!verificaStrategia(p, gen.ordine, limite)) continue;
       p.soluzione = gen.ordine;
       p.seme = seme;
       aggiornaRivelati(p);
       return p;
     }
-    throw new Error('Impossibile generare una partita risolvibile per il livello ' + livelloDef.id);
+    return null;
+  }
+
+  function nuovaPartita(livelloDef, colori, seme) {
+    var p = provaPartita(livelloDef, colori, seme);
+    if (!p) throw new Error('Impossibile generare una partita risolvibile per il livello ' + livelloDef.id);
+    return p;
   }
 
   /* ------------------------------------------------------------------ */
@@ -673,7 +765,6 @@
    * Restituisce true (risolvibile), false (sicuramente no) o null (non
    * deciso entro il limite di nodi). Considera le scelte reali del
    * giocatore: quale mezzo libero far uscire quando c'è uno stallo libero.
-   * opzioni.ignoraNascosti: true per ragionare con i colori veri (default).
    */
   function risolvibile(p, limiteNodi) {
     var budget = { nodi: limiteNodi || 20000 };
@@ -691,10 +782,8 @@
       if (visti[k]) return false;
       visti[k] = true;
       if (slotLiberi(s) === 0) return false;
-      var occ = occupazione(s);
-      var liberi = s.ordine.filter(function (id) { return s.mezzi[id].stato === 'piazzale' && esaminaUscita(s, id, occ).libero; });
+      var liberi = mezziLiberi(s);
       if (!liberi.length) return false;
-      // prima i colori che compaiono prima nella fila
       var prima = {};
       for (var i = s.fila.length - 1; i >= s.testa; i--) prima[s.fila[i]] = i;
       liberi.sort(function (a, b) {
@@ -722,30 +811,32 @@
     return p.slot.some(function (s) { return s.extra; });
   }
 
-  /* Raggruppa per colore i prossimi passeggeri (finestra), nell'ordine in
-     cui i colori compaiono. Non cambia quanti sono né di che colore. */
+  /* Raggruppa per colore i prossimi gruppi della fila (finestra), nell'ordine
+     in cui i colori compaiono. Le coppie restano coppie: non cambia quanti
+     passeggeri ci sono né di che colore. */
   function filaRaggruppata(p, finestra) {
     var fine = Math.min(p.fila.length, p.testa + finestra);
-    var tratto = p.fila.slice(p.testa, fine);
     var ordineColori = [];
     var gruppi = {};
-    tratto.forEach(function (c) {
+    for (var i = p.testa; i < fine; i++) {
+      var c = p.fila[i];
       if (!gruppi[c]) { gruppi[c] = []; ordineColori.push(c); }
-      gruppi[c].push(c);
-    });
-    var nuovo = [];
-    ordineColori.forEach(function (c) { nuovo = nuovo.concat(gruppi[c]); });
-    return p.fila.slice(0, p.testa).concat(nuovo, p.fila.slice(fine));
+      gruppi[c].push(p.gruppi[i] || 1);
+    }
+    var fila = p.fila.slice(0, p.testa);
+    var pesi = p.gruppi.slice(0, p.testa);
+    ordineColori.forEach(function (c) { gruppi[c].forEach(function (g) { fila.push(c); pesi.push(g); }); });
+    return { fila: fila.concat(p.fila.slice(fine)), gruppi: pesi.concat(p.gruppi.slice(fine)) };
   }
 
   function filaGiaRaggruppata(p, finestra) {
-    var nuova = filaRaggruppata(p, finestra);
+    var nuova = filaRaggruppata(p, finestra).fila;
     for (var i = p.testa; i < nuova.length; i++) if (nuova[i] !== p.fila[i]) return false;
     return true;
   }
 
   function coloriInFila(p) {
-    return Object.keys(contaColori(p.fila, p.testa)).length;
+    return Object.keys(contaFila(p)).length;
   }
 
   /*
@@ -784,24 +875,25 @@
   function usaRiordina(p) {
     var v = puoUsare(p, 'riordina');
     if (!v.ok) return v;
-    var prima = contaColori(p.fila, p.testa);
+    var prima = contaFila(p);
     var primaRisolvibile = null;
     var scelta = null;
-    // finestre via via più corte, finché il raggruppamento lascia la partita aperta
     for (var w = FINESTRA_RIORDINO; w >= 3; w--) {
       if (filaGiaRaggruppata(p, w)) continue;
       var prova = clona(p);
-      prova.fila = filaRaggruppata(p, w);
+      var r = filaRaggruppata(p, w);
+      prova.fila = r.fila; prova.gruppi = r.gruppi;
       var esito = risolvibile(prova, 6000);
-      if (esito !== false) { scelta = prova.fila; break; }
+      if (esito !== false) { scelta = r; break; }
       if (primaRisolvibile === null) primaRisolvibile = risolvibile(p, 6000);
-      if (primaRisolvibile === false) { scelta = prova.fila; break; } // era già compromessa
+      if (primaRisolvibile === false) { scelta = r; break; }
     }
     if (!scelta) return { ok: false, motivo: 'Riordinare adesso chiuderebbe ogni via d’uscita: prova un altro potenziamento.' };
-    if (!stessiConteggi(prima, contaColori(scelta, p.testa)) || scelta.length !== p.fila.length) {
+    if (!stessiConteggi(prima, contaColori(scelta.fila, p.testa, scelta.gruppi)) || scelta.fila.length !== p.fila.length) {
       return { ok: false, motivo: 'Riordino non riuscito.' };
     }
-    p.fila = scelta;
+    p.fila = scelta.fila;
+    p.gruppi = scelta.gruppi;
     p.potenziamenti.riordina--;
     p.usati++;
     if (p.esito === 'bloccata') p.esito = null;
@@ -809,26 +901,26 @@
   }
 
   /* Rigenera la fila dei passeggeri ancora a terra con lo stesso metodo che
-     crea le partite: la nuova fila ha gli stessi passeggeri e una soluzione
-     garantita a partire dallo stato attuale. */
+     crea le partite: stessi passeggeri per colore e una soluzione garantita
+     a partire dallo stato attuale. */
   function usaRimescola(p, casuale) {
     var v = puoUsare(p, 'rimescola');
     if (!v.ok) return v;
     casuale = casuale || Math.random;
-    var prima = contaColori(p.fila, p.testa);
+    var prima = contaFila(p);
     var limite = Math.max(1, p.livello.attesa);
-    var vecchia = p.fila.slice(p.testa);
+    var vecchia = p.fila.slice(p.testa).join(',');
     for (var t = 0; t < 30; t++) {
-      var gen = costruisciFila(p, casuale, limite, Math.max(0.35, p.livello.intreccio));
+      var gen = costruisciFila(p, casuale, limite, Math.max(0.35, p.livello.intreccio), p.livello.coppie);
       if (!gen) continue;
-      if (!stessiConteggi(prima, contaColori(gen.fila))) continue;
+      if (!stessiConteggi(prima, contaColori(gen.fila, 0, gen.gruppi))) continue;
       var prova = clona(p);
       prova.fila = p.fila.slice(0, p.testa).concat(gen.fila);
+      prova.gruppi = p.gruppi.slice(0, p.testa).concat(gen.gruppi);
       if (!verificaStrategia(prova, gen.ordine, limite)) continue;
-      // si preferisce una fila davvero diversa dalla precedente
-      var uguale = gen.fila.length === vecchia.length && gen.fila.every(function (c, i) { return c === vecchia[i]; });
-      if (uguale && t < 29) continue;
+      if (gen.fila.join(',') === vecchia && t < 29) continue;
       p.fila = prova.fila;
+      p.gruppi = prova.gruppi;
       p.soluzione = gen.ordine;
       p.potenziamenti.rimescola--;
       p.usati++;
@@ -850,19 +942,26 @@
     TIPI: TIPI,
     FINESTRA_RIORDINO: FINESTRA_RIORDINO,
     creaCasuale: creaCasuale,
+    mescola: mescola,
     interpretaLivello: interpretaLivello,
     validaLivello: validaLivello,
+    provaPartita: provaPartita,
     nuovaPartita: nuovaPartita,
     clona: clona,
     celleMezzo: celleMezzo,
     percorso: percorso,
     occupazione: occupazione,
     esaminaUscita: esaminaUscita,
+    catenaSciolta: catenaSciolta,
+    puoUscire: puoUscire,
+    mezziLiberi: mezziLiberi,
+    sbarraAlzata: sbarraAlzata,
     estrai: estrai,
     segnaArrivato: segnaArrivato,
     imbarcaUno: imbarcaUno,
     imbarcaTutti: imbarcaTutti,
     controllaBlocco: controllaBlocco,
+    motivoBlocco: motivoBlocco,
     verificaStrategia: verificaStrategia,
     risolvibile: risolvibile,
     puoUsare: puoUsare,
@@ -873,6 +972,9 @@
     mezziInAttesa: mezziInAttesa,
     restantiNelParcheggio: restantiNelParcheggio,
     coloreInTesta: coloreInTesta,
-    contaColori: contaColori
+    gruppoInTesta: gruppoInTesta,
+    passeggeriInFila: passeggeriInFila,
+    contaColori: contaColori,
+    contaFila: contaFila
   };
 });
