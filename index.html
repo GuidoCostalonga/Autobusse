@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Autobusse</title>
+  <meta name="description" content="Autobusse: libera il parcheggio, fai uscire gli autobus nell'ordine giusto e porta ogni passeggero sul mezzo del suo colore. Dodici livelli da giocare nel navigatore, senza registrazione.">
+  <!-- Pagina non indicizzata: non è privata, chi conosce l'indirizzo può aprirla. -->
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="googlebot" content="noindex, nofollow">
+  <meta name="theme-color" content="#1b2a4a">
+  <meta name="color-scheme" content="light">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="icona-180.png">
+  <link rel="stylesheet" href="css/stile.css">
+</head>
+<body>
+  <!-- Simboli dei colori: ogni colore ha anche una forma -->
+  <svg class="sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+    <symbol id="s-cuore" viewBox="0 0 24 24"><path d="M12 21.2s-8-4.9-10-9.8C.6 7.9 2.8 4 6.7 4c2.3 0 3.8 1.3 5.3 3.3C13.5 5.3 15 4 17.3 4c3.9 0 6.1 3.9 4.7 7.4-2 4.9-10 9.8-10 9.8z"/></symbol>
+    <symbol id="s-rombo" viewBox="0 0 24 24"><path d="M12 1.5 22.5 12 12 22.5 1.5 12z"/></symbol>
+    <symbol id="s-stella" viewBox="0 0 24 24"><path d="M12 1.8l3.1 6.6 7.2.8-5.4 4.9 1.5 7.1L12 17.6l-6.4 3.6 1.5-7.1L1.7 9.2l7.2-.8z"/></symbol>
+    <symbol id="s-triangolo" viewBox="0 0 24 24"><path d="M12 2.5 22.8 21H1.2z"/></symbol>
+    <symbol id="s-esagono" viewBox="0 0 24 24"><path d="M7 2.5h10l5.5 9.5L17 21.5H7L1.5 12z"/></symbol>
+    <symbol id="s-cerchio" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></symbol>
+    <symbol id="s-quadrato" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/></symbol>
+    <symbol id="s-croce" viewBox="0 0 24 24"><path d="M8.5 1.5h7v7h7v7h-7v7h-7v-7h-7v-7h7z"/></symbol>
+    <symbol id="s-ignoto" viewBox="0 0 24 24"><path d="M12 1.5a8 8 0 0 0-8 8h4.4a3.6 3.6 0 1 1 5.3 3.2c-2 1.1-3.5 2.6-3.5 5.1v.7h4.4v-.4c0-1.1.6-1.7 2-2.6A8 8 0 0 0 12 1.5zM9.8 20.4h4.4v2.6H9.8z"/></symbol>
+    <symbol id="s-freccia" viewBox="0 0 24 24"><path d="M7 3.5 17.5 12 7 20.5V15l4-3-4-3z"/></symbol>
+    <symbol id="i-pausa" viewBox="0 0 24 24"><path d="M6 4h4.5v16H6zM13.5 4H18v16h-4.5z"/></symbol>
+    <symbol id="i-audio" viewBox="0 0 24 24"><path d="M3 9h4l5-4.5v15L7 15H3zM15.5 8.5a5 5 0 0 1 0 7l-1.4-1.4a3 3 0 0 0 0-4.2zM18.3 5.7a9 9 0 0 1 0 12.6l-1.4-1.4a7 7 0 0 0 0-9.8z"/></symbol>
+    <symbol id="i-muto" viewBox="0 0 24 24"><path d="M3 9h4l5-4.5v15L7 15H3zM15 9.4l1.4-1.4 2.6 2.6 2.6-2.6L23 9.4 20.4 12l2.6 2.6-1.4 1.4-2.6-2.6-2.6 2.6-1.4-1.4 2.6-2.6z"/></symbol>
+    <symbol id="i-slot" viewBox="0 0 24 24"><path d="M3 6h8v12H3zM5 8v8h4V8zM13 11h3V8h2v3h3v2h-3v3h-2v-3h-3z"/></symbol>
+    <symbol id="i-riordina" viewBox="0 0 24 24"><path d="M2 5h5v5H2zM2 14h5v5H2zM9 5h5v5H9zM9 14h5v5H9zM17 6h5v2h-5zM17 10h5v2h-5zM17 14h5v2h-5zM17 18h5v2h-5z"/></symbol>
+    <symbol id="i-rimescola" viewBox="0 0 24 24"><path d="M16 3l5 4-5 4V8.5h-2.2c-1.4 0-2.2.6-3.1 2l-3 4.7C6.4 17.3 5 18.5 2.5 18.5H2V16h.5c1.4 0 2.2-.6 3.1-2l3-4.7C9.9 7.2 11.3 6 13.8 6H16zM2 5.5h.5c1.9 0 3.2.7 4.3 2l-1.5 2.2C4.6 8.6 3.8 8 2.5 8H2zm14 8 5 4-5 4V18.5h-2.2c-1.9 0-3.2-.7-4.3-2l1.5-2.2c.7 1.1 1.5 1.7 2.8 1.7H16z"/></symbol>
+    <symbol id="i-lucchetto" viewBox="0 0 24 24"><path d="M7 10V7a5 5 0 0 1 10 0v3h1.5v11h-13V10zm2.5 0h5V7a2.5 2.5 0 0 0-5 0z"/></symbol>
+    <symbol id="i-spunta" viewBox="0 0 24 24"><path d="M9.5 16.2 4.8 11.5 3 13.3l6.5 6.5L21 8.3l-1.8-1.8z"/></symbol>
+    <symbol id="i-garage" viewBox="0 0 24 24"><path d="M12 2 1.5 8.5V22h21V8.5zM5 12h14v10h-2.2v-7.8H7.2V22H5z"/></symbol>
+  </svg>
+
+  <div id="app">
+    <!-- Schermata iniziale -->
+    <section id="home" class="schermata home" aria-labelledby="titolo-gioco">
+      <div class="home-interno">
+        <div class="logo" aria-hidden="true">
+          <div class="logo-bus"><span></span><span></span><span></span></div>
+        </div>
+        <h1 id="titolo-gioco">Autobusse</h1>
+        <p class="motto">Libera il parcheggio, riempi gli autobus, fai partire tutti.</p>
+        <button id="b-gioca" class="tasto tasto-grande tasto-primario" type="button">Gioca</button>
+        <p id="home-prossimo" class="home-prossimo"></p>
+        <h2 class="titoletto">Livelli</h2>
+        <ol id="elenco-livelli" class="elenco-livelli"></ol>
+        <div class="home-azioni">
+          <button id="b-home-aiuto" class="tasto" type="button">Come si gioca</button>
+          <button id="b-home-impostazioni" class="tasto" type="button">Impostazioni</button>
+        </div>
+        <p class="nota-home">I progressi restano salvati solo in questo navigatore, su questo dispositivo.</p>
+      </div>
+    </section>
+
+    <!-- Partita -->
+    <section id="gioco" class="schermata gioco" hidden aria-label="Partita in corso">
+      <header class="barra-gioco">
+        <button id="b-pausa" class="tasto-icona" type="button" aria-label="Pausa" title="Pausa (Esc)">
+          <svg aria-hidden="true"><use href="#i-pausa"/></svg>
+        </button>
+        <div class="titolo-livello">
+          <span id="g-numero" class="g-numero">Livello 1</span>
+          <strong id="g-nome" class="g-nome"></strong>
+        </div>
+        <div class="progresso">
+          <div id="g-progresso" class="progresso-barra" role="progressbar" aria-label="Passeggeri a bordo" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><span id="g-barra"></span></div>
+          <span id="g-progresso-testo" class="progresso-testo"></span>
+        </div>
+        <button id="b-audio" class="tasto-icona" type="button" aria-pressed="true" aria-label="Audio attivo" title="Audio">
+          <svg aria-hidden="true"><use href="#i-audio"/></svg>
+        </button>
+      </header>
+
+      <div class="campo">
+        <div class="fermata">
+          <section class="riquadro riquadro-fila" aria-labelledby="t-fila">
+            <div class="intestazione">
+              <h2 id="t-fila">Fila</h2>
+              <span id="g-testa" class="g-testa"></span>
+              <span id="g-fila-conta" class="conta"></span>
+            </div>
+            <ol id="g-fila" class="fila"></ol>
+          </section>
+          <section class="riquadro riquadro-attesa" aria-labelledby="t-attesa">
+            <div class="intestazione">
+              <h2 id="t-attesa">Zona di attesa</h2>
+              <span id="g-attesa-conta" class="conta"></span>
+            </div>
+            <ol id="g-attesa" class="attesa"></ol>
+          </section>
+        </div>
+
+        <div class="piazzale-box" id="g-piazzale-box">
+          <div id="g-piazzale" class="piazzale" role="group" aria-label="Parcheggio: scegli un autobus da far uscire" aria-describedby="g-piazzale-aiuto"></div>
+          <p id="g-piazzale-aiuto" class="vis-nascosto">Usa Tab o le frecce per spostarti tra gli autobus, Invio o Spazio per farne uscire uno.</p>
+          <p id="g-messaggio" class="messaggio" role="status" aria-live="polite"></p>
+        </div>
+
+        <div class="potenziamenti" role="group" aria-label="Potenziamenti">
+          <button class="pot" type="button" data-pot="slot" aria-describedby="d-pot-slot">
+            <svg class="pot-icona" aria-hidden="true"><use href="#i-slot"/></svg>
+            <span class="pot-nome">Slot extra</span>
+            <span class="pot-conta" data-conta="slot">0</span>
+            <span class="pot-effetto" id="d-pot-slot">Uno stallo in più finché non parte il mezzo che lo occupa</span>
+          </button>
+          <button class="pot" type="button" data-pot="riordina" aria-describedby="d-pot-riordina">
+            <svg class="pot-icona" aria-hidden="true"><use href="#i-riordina"/></svg>
+            <span class="pot-nome">Riordina fila</span>
+            <span class="pot-conta" data-conta="riordina">0</span>
+            <span class="pot-effetto" id="d-pot-riordina">Raggruppa per colore i prossimi 10 passeggeri</span>
+          </button>
+          <button class="pot" type="button" data-pot="rimescola" aria-describedby="d-pot-rimescola">
+            <svg class="pot-icona" aria-hidden="true"><use href="#i-rimescola"/></svg>
+            <span class="pot-nome">Rimescola</span>
+            <span class="pot-conta" data-conta="rimescola">0</span>
+            <span class="pot-effetto" id="d-pot-rimescola">Nuovo ordine della fila, sempre con una soluzione</span>
+          </button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Inizio livello -->
+  <dialog id="d-inizio" class="finestra" aria-labelledby="t-inizio">
+    <p id="inizio-numero" class="sopratitolo"></p>
+    <h2 id="t-inizio"></h2>
+    <p id="inizio-novita" class="novita"></p>
+    <ul id="inizio-dati" class="dati"></ul>
+    <div class="pila">
+      <button class="tasto tasto-primario tasto-grande" type="button" data-azione="inizia">Inizia</button>
+    </div>
+  </dialog>
+
+  <!-- Pausa -->
+  <dialog id="d-pausa" class="finestra" aria-labelledby="t-pausa">
+    <h2 id="t-pausa">Pausa</h2>
+    <p id="pausa-livello" class="sottotitolo"></p>
+    <div class="pila">
+      <button class="tasto tasto-primario" type="button" data-azione="riprendi">Riprendi</button>
+      <button class="tasto" type="button" data-azione="riavvia">Ricomincia il livello</button>
+      <button class="tasto" type="button" data-azione="aiuto">Come si gioca</button>
+      <button class="tasto" type="button" data-azione="impostazioni">Impostazioni</button>
+      <button class="tasto tasto-tenue" type="button" data-azione="menu">Torna al menu</button>
+    </div>
+  </dialog>
+
+  <!-- Vittoria -->
+  <dialog id="d-vittoria" class="finestra finestra-festa" aria-labelledby="t-vittoria">
+    <div class="festa" aria-hidden="true"></div>
+    <h2 id="t-vittoria">Livello completato!</h2>
+    <p id="vittoria-testo" class="sottotitolo"></p>
+    <ul id="vittoria-dati" class="dati"></ul>
+    <div class="pila">
+      <button id="b-successivo" class="tasto tasto-primario tasto-grande" type="button" data-azione="successivo">Livello successivo</button>
+      <button class="tasto" type="button" data-azione="riavvia">Rigioca</button>
+      <button class="tasto tasto-tenue" type="button" data-azione="menu">Torna al menu</button>
+    </div>
+  </dialog>
+
+  <!-- Blocco -->
+  <dialog id="d-blocco" class="finestra finestra-blocco" aria-labelledby="t-blocco">
+    <h2 id="t-blocco">Fermata bloccata</h2>
+    <p id="blocco-testo" class="sottotitolo"></p>
+    <div class="pila">
+      <button class="tasto tasto-primario tasto-grande" type="button" data-azione="riavvia">Riprova</button>
+      <button id="b-blocco-aiuti" class="tasto" type="button" data-azione="usa-aiuto">Usa un potenziamento</button>
+      <button class="tasto tasto-tenue" type="button" data-azione="menu">Torna al menu</button>
+    </div>
+  </dialog>
+
+  <!-- Impostazioni -->
+  <dialog id="d-impostazioni" class="finestra" aria-labelledby="t-impostazioni">
+    <h2 id="t-impostazioni">Impostazioni</h2>
+    <div class="impostazione">
+      <label for="imp-audio">Effetti sonori</label>
+      <input id="imp-audio" type="checkbox" role="switch">
+    </div>
+    <div class="impostazione">
+      <label for="imp-animazioni">Animazioni</label>
+      <input id="imp-animazioni" type="checkbox" role="switch">
+    </div>
+    <p id="nota-animazioni" class="nota"></p>
+    <button id="b-auto-animazioni" class="tasto tasto-tenue" type="button">Segui le preferenze del dispositivo</button>
+    <hr>
+    <button id="b-azzera" class="tasto tasto-pericolo" type="button">Azzera i progressi</button>
+    <div class="pila">
+      <button class="tasto tasto-primario" type="button" data-azione="chiudi">Fatto</button>
+    </div>
+  </dialog>
+
+  <!-- Conferma azzeramento -->
+  <dialog id="d-conferma" class="finestra" aria-labelledby="t-conferma">
+    <h2 id="t-conferma">Azzerare i progressi?</h2>
+    <p class="sottotitolo">Torneranno bloccati tutti i livelli tranne il primo. Le impostazioni restano.</p>
+    <div class="pila">
+      <button class="tasto tasto-pericolo" type="button" data-azione="conferma">Sì, azzera</button>
+      <button class="tasto tasto-primario" type="button" data-azione="chiudi">Annulla</button>
+    </div>
+  </dialog>
+
+  <!-- Come si gioca -->
+  <dialog id="d-aiuto" class="finestra finestra-larga" aria-labelledby="t-aiuto">
+    <h2 id="t-aiuto">Come si gioca</h2>
+    <div class="aiuto-testo">
+      <h3>Lo scopo</h3>
+      <p>Fai salire tutti i passeggeri e svuota il parcheggio. Ogni passeggero sale solo sull'autobus del suo colore, che riconosci anche dal simbolo.</p>
+      <h3>Le mosse</h3>
+      <ul>
+        <li>Tocca un autobus: se la strada davanti al muso (dove c'è la freccia) è libera, esce e va nella zona di attesa.</li>
+        <li>Se la strada è occupata, il gioco ti mostra chi la blocca.</li>
+        <li>Sale solo chi è in testa alla fila. Quando un autobus è pieno parte e libera lo stallo.</li>
+        <li>Se tutti gli stalli sono occupati e nessuno può accogliere chi è in testa, la fermata si blocca.</li>
+      </ul>
+      <h3>I mezzi speciali</h3>
+      <ul>
+        <li><strong>Colore nascosto</strong>: grigio con il punto di domanda. Il colore si scopre quando la sua strada si libera.</li>
+        <li><strong>Garage</strong>: fa uscire un mezzo alla volta. Il numero dice quanti ne restano dentro, coperti.</li>
+        <li>Più il mezzo è lungo, più posti ha: dai minibus da 3 al gran turismo da 40.</li>
+      </ul>
+      <h3>I potenziamenti</h3>
+      <ul>
+        <li><strong>Slot extra</strong>: apre uno stallo in più; si chiude quando parte il mezzo che lo ha usato.</li>
+        <li><strong>Riordina fila</strong>: raggruppa per colore i prossimi 10 passeggeri, senza toglierne né aggiungerne.</li>
+        <li><strong>Rimescola</strong>: cambia l'ordine di tutta la fila, lasciando sempre almeno una soluzione.</li>
+      </ul>
+      <h3>Con la tastiera</h3>
+      <ul>
+        <li>Tab e frecce per spostarsi tra gli autobus, Invio o Spazio per farli uscire.</li>
+        <li>Tasti 1, 2 e 3 per i potenziamenti, Esc per la pausa.</li>
+      </ul>
+      <h3>I colori</h3>
+      <ul id="legenda-colori" class="legenda"></ul>
+    </div>
+    <div class="pila">
+      <button class="tasto tasto-primario" type="button" data-azione="chiudi">Ho capito</button>
+    </div>
+  </dialog>
+
+  <noscript><p class="noscript">Autobusse ha bisogno di JavaScript attivo nel navigatore.</p></noscript>
+
+  <script src="js/colori.js"></script>
+  <script src="js/motore.js"></script>
+  <script src="js/livelli.js"></script>
+  <script src="js/archivio.js"></script>
+  <script src="js/suoni.js"></script>
+  <script src="js/interfaccia.js"></script>
+</body>
+</html>
